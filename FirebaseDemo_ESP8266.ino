@@ -1,150 +1,91 @@
 #include <ESP8266WiFi.h>
 #include <FirebaseArduino.h>
 #include <Time.h>
+#include <Servo.h>
+
 
 #define FIREBASE_HOST "wintercapstonedesign-default-rtdb.firebaseio.com"
 #define FIREBASE_AUTH "CVZnha3EeEZqdRPeb1mBW08XiOdmExztb3ofAslm"
 #define WIFI_SSID "iPhone 13"
 #define WIFI_PASSWORD "BRUV-fE8L-0Rgn-Ej6x"
+WiFiServer server(80);
 
-#define DOORLOCKPIN 8
-
-// 1. db에서 input_password 가져와서 user id의 lock_pwd와 비교
-// 1-1 값이 일치하면 도어록 잠금 해제
-// 1-2 잠금해제 되면 현재 날짜랑 시간, user id를 db에 저장 (door_open)
-
-// 2. check_qr, check_face 값 가져와서 true일 때 도어록 잠금 해제
-// 2-1 qr, face 각각 나눠서 로그 저장 
-
-// 3. otp는 어떻게? 
+#define SERVOMOTORPIN 0
+#define DOORLOCKPIN 2
 
 String user_id = "bae0000";
 String kind="";
 
-void setup() {
+Servo servo;
+unsigned long OldClock=0;
+int angle=0;
+int count=0;
+
+void setup(){
   Serial.begin(9600);
-  pinMode(DOORLOCKPIN, OUTPUT);
   
-  // connect to wifi.
+  pinMode(SERVOMOTORPIN,OUTPUT);
+  servo.attach(SERVOMOTORPIN);
+  servo.write(0);
+
+  pinMode(DOORLOCKPIN,OUTPUT);
+  digitalWrite(DOORLOCKPIN,0);
+  
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.print("connecting");
-  while (WiFi.status() != WL_CONNECTED) {
+  while(WiFi.status()!=WL_CONNECTED){
     Serial.print(".");
     delay(500);
   }
   Serial.println();
-  Serial.print("connected: ");
+  Serial.print("connected : ");
+  Serial.println(WiFi.localIP());
+
+  server.begin();
+  Serial.println("Server started");
   Serial.println(WiFi.localIP());
   
   Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
 }
 
-int n = 0;
-
-void loop() {
-
-//  Firebase.setFloat("number", 42.0);
-//
-//  if (Firebase.failed()) {
-//      Serial.print("setting /number failed:");
-//      Serial.println(Firebase.error());  
-//      return;
-//  }
-//  String input_pwd = Firebase.getString("input_password"); // 안드로이드 앱에서 사용자가 입력한 비밀번호
-//  String real_pwd = Firebase.getString("user/"+ user_id + "/lock_pwd"); // 사용자가 등록한 비밀번호
-
-    if (Firebase.failed()) {
+void loop(){
+  if (Firebase.failed()) {
       Serial.print("setting /number failed:");
       Serial.println(Firebase.error());  
       return;
     }
-    else {
-      if(Firebase.getString("input_password") == Firebase.getString("user/"+ user_id + "/lock_pwd")) {
-        Serial.println("same");
-        DoorOpen();
+    if(Firebase.getInt("pwd_num")<5){
+      if(Firebase.getString("shoes_detected")=="true"){
+        while(true){
+            unsigned long now=millis();
+            if(now-OldClock>=100){
+            OldClock=now;
+            servo.write(count*30);
+            count++;
+            if(count>6) count=0;
+            if(Firebase.getString("face_detected")=="true"){
+              break;
+            }
+          } 
+        }
       }
-      else if(isOpen("check_qr")==true){
-        kind="QR";
-        DoorOpen();
-      }
-      else if(isOpen("check_face")==true){
-        kind="FACE";
-        DoorOpen();
-      }
-      else {
-        Serial.println("different");  
+      if(Firebase.getString("check_face")=="true"||
+      Firebase.getString("check_pwd")=="true"||
+      Firebase.getString("check_qr")=="true"){
+        Serial.println("Door Open");
+        digitalWrite(DOORLOCKPIN,HIGH);
+        delay(750);
+        digitalWrite(DOORLOCKPIN,LOW);
+        Firebase.setString("check_face","false");
+        Firebase.setString("check_otp","false");
+        Firebase.setString("check_pwd","false");
+        Firebase.setString("check_qr","false");
       }
     }
-
-  // update value
-//  Firebase.setFloat("number", 43.0);
-//  // handle error
-//  if (Firebase.failed()) {
-//      Serial.print("setting /number failed:");
-//      Serial.println(Firebase.error());  
-//      return;
-//  }
-//  delay(1000);
-//
-//  // get value 
-//  Serial.print("number: ");
-//  Serial.println(Firebase.getFloat("number"));
-//  delay(1000);
-//
-//  // remove value
-//  Firebase.remove("number");
-//  delay(1000);
-//
-//  // set string value
-//  Firebase.setString("message", "hello world");
-//  // handle error
-//  if (Firebase.failed()) {
-//      Serial.print("setting /message failed:");
-//      Serial.println(Firebase.error());  
-//      return;
-//  }
-//  delay(1000);
-//  
-//  // set bool value
-//  Firebase.setBool("truth", false);
-//  // handle error
-//  if (Firebase.failed()) {
-//      Serial.print("setting /truth failed:");
-//      Serial.println(Firebase.error());  
-//      return;
-//  }
-//  delay(1000);
-//
-//  // append a new value to /logs
-//  String name = Firebase.pushInt("logs", n++);
-//  // handle error
-//  if (Firebase.failed()) {
-//      Serial.print("pushing /logs failed:");
-//      Serial.println(Firebase.error());  
-//      return;
-//  }
-//  Serial.print("pushed: /logs/");
-//  Serial.println(name);
-//  delay(1000);
-}
-
-void DoorOpen(){
-  digitalWrite(DOORLOCKPIN,HIGH);
-  delay(750);
-  digitalWrite(DOORLOCKPIN,LOW);
-}
-
-bool isOpen(String condition){
-  if(Firebase.getBool(condition)==true){
-    String date=year()+"/"+month()+"/"+day();
-    String dayTime=hour()+":"+minute()+":"+second();
-    Firebase.setBool(condition,false);
-    n++;
-    Firebase.setString("door_open/"+user_id+"/"+condition+"/"+n+"/date",date);
-    Firebase.setBool("door_open/"+user_id+"/"+condition+"/"+n+"/success",true);
-    Firebase.setString("door_open/"+user_id+"/"+condition+"/"+n+"/user_id",user_id);
-    //String real_pwd = Firebase.getString("user/"+ user_id + "/lock_pwd");
-    return true;
-  }
-  return false;
+    else{
+      if(Firebase.getString("check_otp")=="true"){
+        Firebase.setInt("pwd_num",0);
+        Firebase.setString("check_otp","false");
+      }
+    }
 }
