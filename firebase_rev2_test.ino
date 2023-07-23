@@ -4,12 +4,16 @@
 #define FIREBASE_HOST "wintercapstonedesign-default-rtdb.firebaseio.com"
 #define FIREBASE_AUTH "CVZnha3EeEZqdRPeb1mBW08XiOdmExztb3ofAslm"
 #define WIFI_SSID "배선영의 iPhone"
-#define WIFI_PASSWORD "qotjsdud67"
+#define WIFI_PASSWORD ""
 
 FirebaseData firebaseData;
 
 int pinRELAY = 8; // 도어록 제어 핀 번호
-String check_qr; // QR 코드 성공여부 값 가져오기
+int check_pwd_num; // 비밀번호 실패 횟수 
+String check_qr; // QR 코드 성공여부 값 
+String check_face; // 얼굴 인식 성공여부 값 
+String check_pwd; // 비밀번호 입력 성공여부 값 
+String check_otp; // otp 입력 성공여부 값 
 
 void setup()
 {
@@ -47,12 +51,23 @@ void setup()
 
 void loop()
 {
-  // Read IMU acceleration data
   if (IMU.accelerationAvailable()) {
-    // QR 코드 정상 판별 여부 확인하기
+     if(Firebase.getInt(firebaseData, "/pwd_num")) {
+      Serial.println("비밀번호 입력 실패 횟수 ok"); 
+      if(firebaseData.dataType() == "int") {
+        check_pwd_num = firebaseData.intData();
+        // 값이 true일 때 도어록 잠금 해제
+        if(check_pwd_num >= 5) {
+          pinRELAY = 1; 
+          Serial.println("도어록이 비활성화됩니다"); 
+        }
+      }
+    }
+    
+    // 1. QR 코드 인식으로 잠금 해제
     if(Firebase.getString(firebaseData, "/check_qr")) { 
-      // 데이터베이스에 값을 제대로 가져왔는지 체크
-      Serial.println("ok"); 
+      // db에서 값을 제대로 가져왔는지 체크
+      Serial.println("QR ok"); 
       if(firebaseData.dataType() == "string") {
         check_qr = firebaseData.stringData();
         // 값이 true일 때 도어록 잠금 해제
@@ -64,6 +79,57 @@ void loop()
           // 도어록 잠금이 계속 제어되는 것을 막기 위해 다시 값을 false로 변경
           if(Firebase.setString(firebaseData, "/check_qr", "false")) { 
             Serial.println("QR 코드 인식이 성공적으로 완료되었습니다.");
+          }
+        }
+      }
+    }
+
+    // 2. 얼굴 인식으로 잠금 해제
+    if(Firebase.getString(firebaseData, "/check_face")) {
+      Serial.println("face ok"); 
+      if(firebaseData.dataType() == "string") {
+        check_face = firebaseData.stringData();
+        // 값이 true일 때 도어록 잠금 해제
+        if(check_face == "true") {
+          digitalWrite(pinRELAY, LOW);
+          delay(1000);
+          digitalWrite(pinRELAY, HIGH); 
+          if(Firebase.setString(firebaseData, "/check_face", "false")) { 
+            Serial.println("얼굴 인식이 성공적으로 완료되었습니다.");
+          }
+        }
+      }
+    }
+
+    // 3. 비밀번호 입력으로 잠금 해제
+    if(Firebase.getString(firebaseData, "/check_pwd")) {
+      Serial.println("pwd ok"); 
+      if(firebaseData.dataType() == "string") {
+        check_pwd = firebaseData.stringData();
+        // 값이 true일 때 도어록 잠금 해제
+        if(check_pwd == "true") {
+          digitalWrite(pinRELAY, LOW);
+          delay(1000);
+          digitalWrite(pinRELAY, HIGH); 
+          if(Firebase.setString(firebaseData, "/check_pwd", "false")) { 
+            Serial.println("비밀번호입력이 성공적으로 완료되었습니다.");
+          }
+        }
+      }
+    }
+
+    // 4. OTP를 정확하게 입력한 경우 도어록 다시 활성화
+    if(Firebase.getString(firebaseData, "/check_otp")) {
+      Serial.println("otp ok"); 
+      if(firebaseData.dataType() == "string") {
+        check_otp = firebaseData.stringData();
+        // 값이 true일 때 도어록을 다시 제어할 수 있도록 pin 번호를 원래대로 복구시킴
+        if(check_otp == "true") {
+          pinRELAY = 8;
+          if(Firebase.setString(firebaseData, "/check_otp", "false")) { 
+            if(Firebase.setInt(firebaseData, "/pwd_num", 0)) {
+              Serial.println("도어록을 다시 활성화합니다."); 
+            }
           }
         }
       }
