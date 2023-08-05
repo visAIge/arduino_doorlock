@@ -1,11 +1,13 @@
 #include <Arduino_LSM6DS3.h>
 #include <Firebase_Arduino_WiFiNINA.h>
+#include <Servo.h>
 
 #define FIREBASE_HOST "wintercapstonedesign-default-rtdb.firebaseio.com"
 #define FIREBASE_AUTH "CVZnha3EeEZqdRPeb1mBW08XiOdmExztb3ofAslm"
 #define WIFI_SSID "배선영의 iPhone"
-#define WIFI_PASSWORD ""
+#define WIFI_PASSWORD "qotjsdud67"
 
+Servo servo;
 FirebaseData firebaseData;
 
 int pinRELAY = 8; // 도어록 제어 핀 번호
@@ -14,6 +16,7 @@ String check_qr; // QR 코드 성공여부 값
 String check_face; // 얼굴 인식 성공여부 값 
 String check_pwd; // 비밀번호 입력 성공여부 값 
 String check_otp; // otp 입력 성공여부 값 
+String check_shoes; // 신발 인식 성공여부 값
 
 void setup()
 {
@@ -47,6 +50,9 @@ void setup()
 
   // 릴레이 제어 핀을 출력으로 설정
   pinMode(pinRELAY, OUTPUT);
+
+  // 서보모터 제어핀 설정
+  servo.attach(7);
 }
 
 void loop()
@@ -84,7 +90,20 @@ void loop()
       }
     }
 
-    // 2. 얼굴 인식으로 잠금 해제
+    // 2. 신발 인식이 성공적으로 된 경우 각도 조절
+    if(Firebase.getString(firebaseData, "/shoes_detected")) {
+      Serial.println("shoes ok"); 
+      if(firebaseData.dataType() == "string") {
+        check_shoes = firebaseData.stringData();
+        // 값이 true일 때 도어록 잠금 해제
+        if(check_shoes == "true") {
+          // 서보모터 각도 조절
+          servo.write(180);
+        }
+      }
+    }
+
+    // 3. 얼굴 인식으로 잠금 해제
     if(Firebase.getString(firebaseData, "/check_face")) {
       Serial.println("face ok"); 
       if(firebaseData.dataType() == "string") {
@@ -95,13 +114,16 @@ void loop()
           delay(1000);
           digitalWrite(pinRELAY, HIGH); 
           if(Firebase.setString(firebaseData, "/check_face", "false")) { 
-            Serial.println("얼굴 인식이 성공적으로 완료되었습니다.");
+            if(Firebase.setString(firebaseData, "/shoes_detected", "false")) { 
+              servo.write(0);
+              Serial.println("얼굴 인식이 성공적으로 완료되었습니다.");
+            }
           }
         }
       }
     }
 
-    // 3. 비밀번호 입력으로 잠금 해제
+    // 4. 비밀번호 입력으로 잠금 해제
     if(Firebase.getString(firebaseData, "/check_pwd")) {
       Serial.println("pwd ok"); 
       if(firebaseData.dataType() == "string") {
@@ -118,7 +140,7 @@ void loop()
       }
     }
 
-    // 4. OTP를 정확하게 입력한 경우 도어록 다시 활성화
+    // 5. OTP를 정확하게 입력한 경우 도어록 다시 활성화
     if(Firebase.getString(firebaseData, "/check_otp")) {
       Serial.println("otp ok"); 
       if(firebaseData.dataType() == "string") {
