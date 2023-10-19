@@ -2,10 +2,10 @@
 #include <Firebase_Arduino_WiFiNINA.h>
 #include <Servo.h>
 
-#define FIREBASE_HOST "wintercapstonedesign-default-rtdb.firebaseio.com"
-#define FIREBASE_AUTH "CVZnha3EeEZqdRPeb1mBW08XiOdmExztb3ofAslm"
-#define WIFI_SSID "배선영의 iPhone"
-#define WIFI_PASSWORD "qotjsdud67"
+#define FIREBASE_HOST ""
+#define FIREBASE_AUTH ""
+#define WIFI_SSID ""
+#define WIFI_PASSWORD ""
 
 Servo servo;
 FirebaseData firebaseData;
