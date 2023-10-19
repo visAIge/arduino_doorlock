@@ -2,10 +2,10 @@
 #include <Firebase_Arduino_WiFiNINA.h>
 #include <Servo.h>
 
-#define FIREBASE_HOST ""
+#define FIREBASE_HOST "파이어베이스 주소"
 #define FIREBASE_AUTH ""
-#define WIFI_SSID ""
-#define WIFI_PASSWORD ""
+#define WIFI_SSID "와이파이"
+#define WIFI_PASSWORD "와이파이 비밀번호"
 
 Servo servo;
 FirebaseData firebaseData;
